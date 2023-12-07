@@ -26,7 +26,7 @@ class _AudioPlayerPageState extends State<AudioPlayerPage> {
 
   void _initPlayer() async {
     await _audioPlayer.setVolume(1.0);
-    await _audioPlayer.setSourceBytes(widget.audioData);
+    print(widget.audioData.length);
   }
 
   Future<void> _playAudio() async {

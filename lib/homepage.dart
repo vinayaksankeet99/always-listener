@@ -49,6 +49,7 @@ class _HomePageState extends State<HomePage> {
         }
         print('yes');
         ByteBuffer buffer = data.buffer;
+        print(buffer.asUint8List().length);
         setState(() {
           recordings.add(buffer.asUint8List());
         });

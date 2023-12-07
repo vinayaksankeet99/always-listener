@@ -8,6 +8,7 @@
          android:usesCleartextTraffic="true">
         <service
             android:name=".MyForegroundService"
+            android:foregroundServiceType="microphone"
             android:exported="false"></service>
 
         <activity

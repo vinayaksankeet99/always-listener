@@ -2,15 +2,16 @@
 
 A new Flutter project.
 
-## Getting Started
+## Implementation
 
-This project is a starting point for a Flutter application.
+1) Implementing the Figma design - DONE
+2) Establishing a channel between Flutter & Kotlin - DONE
+    > This was done using method channel to trigger the periodic audio recorder as well as event channel
+    > event channel is setup in flutter so that it can receive data from native
+3) Setting up foreground service in Android (Kotlin) - DONE
+4) Recording audio in Kotlin and sending it periodically to flutter - DONE
 
-A few resources to get you started if this is your first Flutter project:
+## Incomplete
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+1) I was not able to process the data received in flutter. Somehow the ByteStream received in flutter doesn't seem valid when trying to play it
+2) Hence unable to send it to the API as well for transcription

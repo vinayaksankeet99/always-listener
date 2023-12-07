@@ -1,5 +1,6 @@
 package com.example.always_listener
 
+import android.Manifest
 import android.content.Intent
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
@@ -12,6 +13,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -22,8 +26,10 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.PluginRegistry
 import android.media.MediaRecorder
+import androidx.core.app.ActivityCompat
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.Timer
 import java.util.TimerTask
 import java.util.*
@@ -36,75 +42,81 @@ class MyForegroundService : Service() {
         private const val CHANNEL_ID = "my_foreground_service_channel"
         private const val EVENT_CHANNEL = "always_listener_event"
         private const val NOTIFICATION_ID = 1
+        private const val SAMPLE_RATE = 44100 // or another suitable sample rate
     }
+
+    private lateinit var recorder: AudioRecord
+    private val handler = Handler()
+    private val recordingRunnable = Runnable { sendAudio() }
+    private val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+    private val audioBuffer = ShortArray(bufferSize / 2)
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
 
-    private lateinit var audioBuffer: ByteArrayOutputStream
-    private lateinit var outputFile: File
-    private var mediaRecorder: MediaRecorder? = null
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotificationChannel()
+
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
-        val eventSink = (application as MyApplication).getEventSink()
 
-        // Start the audio recorder
-        startRecording()
 
-        // Schedule a task to send audio data every 5 seconds
-        Timer().scheduleAtFixedRate(object : TimerTask() {
-            override fun run() {
-                // Check if eventSink is initialized
-                Log.d("MyForegroundService", "check5native")
+        Log.d("MyForegroundService", "Foreground service started")
 
-                    Log.d("MyForegroundService", "check5native2")
 
-                    // Stop recording and send the recorded audio
-                    stopRecording()
-                    val audioData = audioBuffer.toByteArray()
-                    audioBuffer.reset()
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return START_STICKY
+        }
+        recorder = AudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            SAMPLE_RATE,
+            AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT,
+            bufferSize
+        )
 
-                    // Send the audio data to Flutter
-                    Handler(mainLooper).post {
-                        eventSink.success(audioData)
-                    }
 
-                    // Resume recording for the next interval
-                    startRecording()
-            }
-        }, 5000, 5000)
+        recorder.startRecording()
+
+        handler.post(recordingRunnable)
 
         return START_STICKY
     }
-    override fun onCreate() {
-        super.onCreate()
-        audioBuffer = ByteArrayOutputStream()
-        outputFile = File.createTempFile("audio_temp", ".3gp", cacheDir)
-    }
 
-    private fun startRecording() {
-        mediaRecorder = MediaRecorder().apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
-            setOutputFile(outputFile.absolutePath)
-            prepare()
-            start()
+    private fun sendAudio() {
+        val eventSink = (application as MyApplication).getEventSink()
+        val readResult = recorder.read(audioBuffer, 0, audioBuffer.size)
+
+        if (readResult > 0) {
+            val byteBuffer = ByteBuffer.allocate(readResult * 2)
+            byteBuffer.asShortBuffer().put(audioBuffer, 0, readResult)
+            val audioData = byteBuffer.array()
+
+            eventSink.success(audioData)
+        } else {
+            Log.e("MyForegroundService", "Error reading audio data!")
         }
+
+        handler.postDelayed(recordingRunnable, 5000)
     }
 
-    private fun stopRecording() {
-        mediaRecorder?.apply {
-            stop()
-            release()
-        }
-        mediaRecorder = null
+    override fun onDestroy() {
+        super.onDestroy()
+        recorder.release()
+        handler.removeCallbacks(recordingRunnable)
     }
-
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -150,14 +162,14 @@ class MainActivity : FlutterActivity() {
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, eventSink: EventChannel.EventSink?) {
                     if (eventSink != null) {
-                        // Set the event sink in the application class
+
                         (application as MyApplication).setEventSink(eventSink)
 
                     }
                 }
 
                 override fun onCancel(arguments: Any?) {
-                    // Handle cancellation if needed
+             
                 }
             })
     }
